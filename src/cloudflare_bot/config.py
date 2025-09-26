@@ -6,10 +6,15 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+from dotenv import load_dotenv
+
 
 DEFAULT_FEED_URL = "https://blog.cloudflare.com/rss/"
 DEFAULT_DATABASE_PATH = "cloudflare_blog.db"
 DEFAULT_INITIAL_SUMMARY_LIMIT = 5
+
+load_dotenv()
+
 
 @dataclass(slots=True)
 class Settings:
