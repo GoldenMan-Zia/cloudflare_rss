@@ -18,6 +18,10 @@ class Settings:
     feed_url: str = DEFAULT_FEED_URL
     database_path: str = DEFAULT_DATABASE_PATH
     openai_api_key: Optional[str] = None
+    llm_api_url: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_message_key: str = "messages"
     wecom_webhook: Optional[str] = None
     initial_summary_limit: int = DEFAULT_INITIAL_SUMMARY_LIMIT
 
@@ -29,6 +33,10 @@ class Settings:
             feed_url=os.getenv("CF_BLOG_FEED", DEFAULT_FEED_URL),
             database_path=os.getenv("CF_BLOG_DB", DEFAULT_DATABASE_PATH),
             openai_api_key=os.getenv("OPENAI_API_KEY"),
+            llm_api_url=os.getenv("LLM_API_URL"),
+            llm_api_key=os.getenv("LLM_API_KEY"),
+            llm_model=os.getenv("LLM_MODEL"),
+            llm_message_key=os.getenv("LLM_MESSAGE_KEY", "messages"),
             wecom_webhook=os.getenv("WECOM_WEBHOOK"),
             initial_summary_limit=_get_int(
                 "CF_BLOG_INITIAL_SUMMARY_LIMIT", DEFAULT_INITIAL_SUMMARY_LIMIT

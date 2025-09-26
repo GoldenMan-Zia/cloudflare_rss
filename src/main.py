@@ -21,7 +21,17 @@ def process_entries(entries: Iterable[rss.FeedEntry], settings: config.Settings)
             LOGGER.warning("Skipping %s due to missing content", entry.link)
             continue
 
-        summary = summarizer.generate_brief(entry.title, content, settings.openai_api_key)
+        model_name = settings.llm_model or "gpt-4o-mini"
+        summary = summarizer.generate_brief(
+            entry.title,
+            content,
+            openai_api_key=settings.openai_api_key,
+            model=model_name,
+            custom_api_url=settings.llm_api_url,
+            custom_api_key=settings.llm_api_key,
+            custom_model=settings.llm_model,
+            custom_message_key=settings.llm_message_key,
+        )
         record = storage.ArticleRecord(
             id=entry.id,
             title=entry.title,

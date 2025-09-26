@@ -33,8 +33,41 @@ python src/main.py
 | `CF_BLOG_FEED` | RSS 地址，默认 `https://blog.cloudflare.com/rss/` |
 | `CF_BLOG_DB` | SQLite 数据库存储路径 |
 | `OPENAI_API_KEY` | OpenAI API Key，用于生成中文摘要 |
+| `LLM_API_URL` | （可选）自定义 LLM HTTP 接口地址，设置后将优先使用该接口 |
+| `LLM_API_KEY` | （可选）自定义 LLM 的鉴权 Token，将自动加到 `Authorization: Bearer` 头中 |
+| `LLM_MODEL` | （可选）自定义 LLM 模型名称；对 OpenAI 与自定义接口同时生效 |
+| `LLM_MESSAGE_KEY` | （可选）自定义接口中承载对话内容的字段名，默认为 `messages` |
 | `WECOM_WEBHOOK` | 企业微信机器人 webhook URL |
 | `CF_BLOG_INITIAL_SUMMARY_LIMIT` | 首次同步时生成并推送摘要的最大文章数，默认为 5 |
+
+### 使用自定义 LLM 接口
+
+当需要接入非 OpenAI 的模型服务时，只需提供兼容的 HTTP Chat Completion 接口。例如以下 EdgeFn API：
+
+```python
+import requests
+
+url = "https://api.edgefn.net/v1/chat/completions"
+headers = {
+    "Authorization": "Bearer <YOUR_API_KEY>",
+    "Content-Type": "application/json",
+}
+data = {
+    "model": "Qwen3-Next-80B-A3B-Instruct",
+    "messages": [{"role": "user", "content": "Hello"}],
+}
+```
+
+在 `.env` 中设置：
+
+```dotenv
+LLM_API_URL=https://api.edgefn.net/v1/chat/completions
+LLM_API_KEY=<YOUR_API_KEY>
+LLM_MODEL=Qwen3-Next-80B-A3B-Instruct
+LLM_MESSAGE_KEY=messages
+```
+
+程序会按照上述配置自动构造 `POST` 请求并解析常见的 `choices[].message.content`、`choices[].text`、`output_text` 等字段返回的摘要。如果接口返回非标准结构，可在 `_extract_text_from_response` 中扩展解析逻辑。
 
 ## 部署建议
 
