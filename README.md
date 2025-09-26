@@ -21,7 +21,8 @@ cp .env.example .env
 python src/main.py
 ```
 
-运行脚本后会自动创建/更新 SQLite 数据库 `cloudflare_blog.db` 并推送新增文章。
+
+运行脚本后会自动创建/更新 SQLite 数据库 `cloudflare_blog.db` 并推送新增文章。首次同步时，所有历史文章都会入库，但仅会为最新的若干篇（默认 5 篇，可配置）生成摘要并推送，以避免刷屏。
 
 ## 配置项
 
@@ -33,6 +34,7 @@ python src/main.py
 | `CF_BLOG_DB` | SQLite 数据库存储路径 |
 | `OPENAI_API_KEY` | OpenAI API Key，用于生成中文摘要 |
 | `WECOM_WEBHOOK` | 企业微信机器人 webhook URL |
+| `CF_BLOG_INITIAL_SUMMARY_LIMIT` | 首次同步时生成并推送摘要的最大文章数，默认为 5 |
 
 ## 部署建议
 
