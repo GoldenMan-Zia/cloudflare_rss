@@ -69,6 +69,7 @@ def split_initial_entries(
     return to_summarise, to_archive
 
 
+
 def main() -> None:
     settings = config.Settings.from_env()
     storage.initialize_database(settings.database_path)
@@ -90,7 +91,6 @@ def main() -> None:
             persist_entries_without_summary(to_store_only, settings)
         process_entries(to_process, settings)
         return
-
     process_entries(new_entries, settings)
 
 

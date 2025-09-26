@@ -11,7 +11,6 @@ DEFAULT_FEED_URL = "https://blog.cloudflare.com/rss/"
 DEFAULT_DATABASE_PATH = "cloudflare_blog.db"
 DEFAULT_INITIAL_SUMMARY_LIMIT = 5
 
-
 @dataclass(slots=True)
 class Settings:
     """Runtime configuration loaded from environment variables."""
