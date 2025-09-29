@@ -22,7 +22,7 @@ def process_entries(entries: Iterable[rss.FeedEntry], settings: config.Settings)
             continue
 
         model_name = settings.llm_model or "gpt-4o-mini"
-        summary = summarizer.generate_brief(
+        brief = summarizer.generate_brief(
             entry.title,
             content,
             openai_api_key=settings.openai_api_key,
@@ -32,17 +32,23 @@ def process_entries(entries: Iterable[rss.FeedEntry], settings: config.Settings)
             custom_model=settings.llm_model,
             custom_message_key=settings.llm_message_key,
         )
+        summary_text = brief.format_plaintext(entry.title)
         record = storage.ArticleRecord(
             id=entry.id,
             title=entry.title,
             link=entry.link,
             published=entry.published,
-            summary_zh=summary,
+            summary_zh=summary_text,
         )
         storage.save_article(settings.database_path, record)
 
         try:
-            notifier.send_wecom_message(summary, entry.link, settings.wecom_webhook)
+            notifier.send_wecom_message(
+                brief,
+                entry.title,
+                entry.link,
+                settings.wecom_webhook,
+            )
         except notifier.NotificationError as exc:
             LOGGER.error("Failed to send notification for %s: %s", entry.link, exc)
 

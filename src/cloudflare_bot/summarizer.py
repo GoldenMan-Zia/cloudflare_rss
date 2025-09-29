@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import requests
@@ -12,6 +13,23 @@ try:  # pragma: no cover - optional dependency
     from openai import OpenAI
 except Exception:  # pragma: no cover - optional dependency
     OpenAI = None  # type: ignore
+
+
+@dataclass(slots=True)
+class Brief:
+    """Structured information for a single article brief."""
+
+    category: str
+    summary: str
+
+    def format_plaintext(self, title: str) -> str:
+        """Return a human-readable representation without colour markup."""
+
+        prefix = f"【{self.category}】" if self.category else ""
+        header = f"{prefix}{title}".strip()
+        if not self.summary:
+            return header
+        return f"{header}\n{self.summary}" if header else self.summary
 
 
 def generate_brief(
@@ -23,14 +41,16 @@ def generate_brief(
     custom_api_key: Optional[str] = None,
     custom_model: Optional[str] = None,
     custom_message_key: str = "messages",
-) -> str:
+) -> Brief:
     """Generate a concise Chinese brief for the article."""
 
     # Prefer LLM if credentials are provided
     prompt = (
         "请阅读以下 Cloudflare 博客文章内容，"
         "用简洁的中文撰写一段 3-5 句的摘要，突出核心问题、解决方案和影响。"
-        "摘要应包含一个合适的标题。文章标题："
+        "请输出 JSON，包含两个字段：category（2-6 字的中文标签，概括文章类型，例"
+        "如“技术分享”“功能更新”“新闻”等），summary（摘要正文，不包含 Markdown 或"
+        "多余引号）。文章标题："
         f"{title}\n\n正文：\n{content[:6000]}"
     )
 
@@ -49,7 +69,9 @@ def generate_brief(
             message_key,
         )
         if completion:
-            return completion
+            parsed = _parse_structured_brief(completion)
+            if parsed:
+                return parsed
 
     if api_key and OpenAI is not None:
         client = OpenAI(api_key=api_key)
@@ -58,15 +80,19 @@ def generate_brief(
             input=[{"role": "user", "content": prompt}],
         )
         completion = response.output_text.strip()
-        if completion:
-            return completion
+        parsed = _parse_structured_brief(completion)
+        if parsed:
+            return parsed
 
     # Fallback heuristic summarisation if no API key is available
     sentences = _split_sentences(content)
     preview = "".join(sentences[:3]).strip()
     if not preview:
         preview = content[:280]
-    return f"《{title}》摘要：{preview}"
+    if not preview:
+        preview = "本文暂无可用摘要，请查看原文。"
+    category = _infer_category(title, content)
+    return Brief(category=category, summary=preview)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -74,6 +100,94 @@ def _split_sentences(text: str) -> list[str]:
 
     parts = re.split(r"(?<=[。！？])\s+", text)
     return [part.strip() for part in parts if part.strip()]
+
+
+def _parse_structured_brief(text: str) -> Optional[Brief]:
+    """Attempt to parse the LLM response into a :class:`Brief`."""
+
+    if not text:
+        return None
+
+    data = _loads_json_safely(text)
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict):
+                brief = _brief_from_mapping(item)
+                if brief:
+                    return brief
+    elif isinstance(data, dict):
+        brief = _brief_from_mapping(data)
+        if brief:
+            return brief
+
+    # Fallback heuristic parsing when LLM returns plain text
+    category_match = re.search(r"类别[：:]\s*([\w\u4e00-\u9fff]+)", text)
+    summary_match = re.search(r"摘要[：:](.*)", text, re.S)
+    category = category_match.group(1).strip() if category_match else ""
+    summary = summary_match.group(1).strip() if summary_match else text.strip()
+    if category and summary:
+        return Brief(category=category, summary=_normalise_summary(summary))
+    return None
+
+
+def _loads_json_safely(text: str) -> Any:
+    """Load JSON while being tolerant to stray characters."""
+
+    import json
+
+    cleaned = text.strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Attempt to trim leading/trailing noise
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end != -1 and start < end:
+            try:
+                return json.loads(cleaned[start : end + 1])
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def _brief_from_mapping(data: dict[str, Any]) -> Optional[Brief]:
+    """Create a :class:`Brief` from a mapping if possible."""
+
+    category = str(
+        data.get("category")
+        or data.get("标签")
+        or data.get("type")
+        or ""
+    ).strip()
+    summary = str(data.get("summary") or data.get("摘要") or "").strip()
+    if not category or not summary:
+        return None
+    return Brief(category=category, summary=_normalise_summary(summary))
+
+
+def _normalise_summary(text: str) -> str:
+    """Normalise whitespace in summary text."""
+
+    lines = [line.strip() for line in text.splitlines()]
+    cleaned = "\n".join(line for line in lines if line)
+    return cleaned.strip()
+
+
+def _infer_category(title: str, content: str) -> str:
+    """Infer a best-effort category when no LLM is available."""
+
+    text = f"{title}\n{content[:600]}".lower()
+    heuristics = [
+        (("security", "vulnerability", "漏洞", "攻击"), "安全更新"),
+        (("tutorial", "guide", "how to", "指南", "教程"), "技术分享"),
+        (("beta", "launch", "new", "update", "发布", "上线"), "功能更新"),
+        (("report", "trend", "analysis", "洞察", "报告"), "趋势洞察"),
+        (("event", "webinar", "conference", "活动", "峰会"), "活动预告"),
+    ]
+    for keywords, category in heuristics:
+        if any(keyword in text for keyword in keywords):
+            return category
+    return "新闻"
 
 
 def _call_custom_llm(
